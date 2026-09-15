@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>无线毫米波雷达智能感知系统 V1.0</title>
+<style>
+  :root {
+    --primary: #1677ff;
+    --primary-light: #e6f4ff;
+    --primary-border: #91caff;
+    --text: #1f2329;
+    --text-2: #646a73;
+    --bg: #f5f7fa;
+    --card-bg: #ffffff;
+    --danger: #f5222d;
+    --ok: #52c41a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+  }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--card-bg);
+    border-bottom: 1px solid #e5e6eb;
+    padding: 8px 16px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .header .title {
+    font-size: 15px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .header .title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+  .stats { display: flex; gap: 18px; align-items: center; }
+  .stat { text-align: center; }
+  .stat .v { font-size: 17px; font-weight: 600; color: var(--primary); }
+  .stat .k { font-size: 11px; color: var(--text-light); }
+  .stat.alarm .v { color: var(--danger); }
+  .btn {
+    border: 1px solid var(--primary-border); background: var(--primary-light);
+    color: var(--primary); padding: 4px 12px; border-radius: 6px;
+    cursor: pointer; font-size: 12px;
+  }
+  .btn:hover { background: #bae0ff; }
+  .main { display: flex; gap: 12px; padding: 12px; flex-wrap: wrap; }
+  .card {
+    background: var(--card-bg); border-radius: 10px;
+    border: 1px solid #e5e6eb; padding: 12px;
+  }
+  .radar-card { flex: 1 1 620px; min-width: 620px; }
+  .side-card { flex: 1 1 260px; min-width: 240px; max-width: 340px; }
+  .card h3 {
+    font-size: 13px; color: var(--text); font-weight: 600;
+    margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .card h3 span { font-weight: 400; color: var(--text); font-size: 11px; }
+  #radarCanvas { width: 100%; display: block; border-radius: 8px; background: #0b1f3a; }
+  .node-list { list-style: none; }
+  .node-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 4px;
+    border-bottom: 1px solid #f0f1f3; font-size: 12px;
+  }
+  .node-item:last-child { border-bottom: none; }
+  .node-item .dotc { width: 10px; height: 10px; border-radius: 50%; }
+  .node-item .name { flex: 1; }
+  .node-item .fps { color: var(--text); font-size: 11px; }
+  .badge { padding: 1px 8px; border-radius: 10px; font-size: 11px; }
+  .badge.on { background: #f6ffed; color: var(--ok); border: 1px solid #b7eb8f; }
+  .badge.off { background: #f5f5f5; color: #a6adb4; border: 1px solid #d9d9d9; }
+  .alarm-list { list-style: none; max-height: 180px; overflow-y: auto; }
+  .alarm-list li {
+    font-size: 11px; color: var(--text); padding: 2px 0;
+    border-bottom: 1px dashed #f0f1f3; font-family: Consolas, monospace;
+  }
+  .alarm-list li.warn { color: var(--danger); }
+  .banner {
+    display: none; background: var(--danger); color: #fff; text-align: center;
+    padding: 4px; font-size: 13px; font-weight: 600;
+  }
+  .banner.show { display: block; }
+  .footer { color: var(--text); font-size: 11px; padding: 6px 16px; }
+</style>
+</head>
+<body>
+
+<div class="banner" id="alarmBanner">警戒区告警：目标进入警戒区域</div>
+
+<div class="header">
+  <div class="title">
+    <span class="dot"></span>
+    无线毫米波雷达智能感知系统 V1.0
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="v" id="stNodes">0</div><div class="k">在线节点</div></div>
+    <div class="stat"><div class="v" id="stTargets">0</div><div class="k">目标数</div></div>
+    <div class="stat"><div class="v" id="stFps">0</div><div class="k">帧率</div></div>
+    <div class="stat alarm"><div class="v" id="stAlarm">正常</div><div class="k">警戒状态</div></div>
+    <button class="btn" id="btnPause">暂停</button>
+    <button class="btn" id="btnExport">导出CSV</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="card radar-card">
+    <h3>雷达扫描界面 <span>120 度视场 / 8m 探测 / 3 目标</span></h3>
+    <canvas id="radarCanvas" width="760" height="520"></canvas>
+  </div>
+
+  <div class="card side-card">
+    <h3>节点状态 <span id="nodeCount"></span></h3>
+    <ul class="node-list" id="nodeList"></ul>
+
+    <h3 style="margin-top:14px">告警事件 <span id="alarmCount"></span></h3>
+    <ul class="alarm-list" id="alarmList"></ul>
+  </div>
+</div>
+
+<div class="footer">无线毫米波雷达智能感知系统 V1.0 · UDP 4210 · MIT License · 基于 Arduino-ESP32-Radarproject (Sudo_solder) 二次开发</div>
+
+<script>
+"use strict";
+
+/* ============================ 全局状态 ============================ */
+const STATE = {
+  paused: false,
+  alarm: false,
+  lastAlarmSound: 0,
+  scanAngle: 0,
+  lastData: null,
+};
+
+const canvas = document.getElementById("radarCanvas");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+
+/* 雷达几何参数 */
+const MAX_DIST = 8000;      // 毫米
+const SECTOR_HALF = 60;    // 120 度视场
+const NODE_COLORS = ["#ff4d4f", "#faad14", "#13c2c2", "#fa8c16",
+                     "#52c41a", "#1677ff", "#722ed1", "#eb2f96"];
+
+function radarCx() { return W * 0.42; }
+function radarCy() { return H * 0.62; }
+function radarR()  { return H * 0.58; }
+
+/* 距离 -> 像素半径（非线性映射，与固件一致） */
+function distToR(d) {
+  const R = radarR();
+  if (d <= 0) return 0;
+  if (d <= 2000) return (d / 2000) * 0.50 * R;
+  if (d <= 4000) return (0.50 + (d - 2000) / 2000 * 0.25) * R;
+  if (d <= 6000) return (0.75 + (d - 4000) / 2000 * 0.15) * R;
+  return (0.90 + (d - 6000) / 2000 * 0.10) * R;
+}
+
+/* 雷达毫米坐标 -> 画布像素坐标 */
+function radarToPixel(x, y) {
+  const dist = Math.sqrt(x * x + y * y);
+  const angle = Math.atan2(x, y) * 180 / Math.PI;  // 0°=正前方，左负右正
+  const r = distToR(dist);
+  const rad = (angle - 90) * Math.PI / 180;
+  return {
+    x: radarCx() + r * Math.cos(rad),
+    y: radarCy() + r * Math.sin(rad)
+  };
+}
+
+/* ============================ 绘图 ============================ */
+
+function drawBackground() {
+  ctx.fillStyle = "#0b1f3a";
+  ctx.fillRect(0, 0, W, H);
+
+  const cx = radarCx(), cy = radarCy(), R = radarR();
+
+  /* 扇形网格 */
+  ctx.lineWidth = 1;
+  for (let a = -SECTOR_HALF; a <= SECTOR_HALF; a += 2) {
+    const rad = (a - 90) * Math.PI / 180;
+    ctx.strokeStyle = "rgba(46,140,255,0.10)";
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + R * Math.cos(rad), cy + R * Math.sin(rad));
+    ctx.stroke();
+  }
+
+  /* 距离圈 */
+  const rings = [500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000];
+  rings.forEach(function (d, i) {
+    const r = distToR(d);
+    const highlight = (i === 1 || i === 8);
+    ctx.strokeStyle = highlight ? "rgba(82,196,26,0.9)" : "rgba(46,140,255,0.35)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, (-90 - SECTOR_HALF) * Math.PI / 180,
+            (-90 + SECTOR_HALF) * Math.PI / 180);
+    ctx.stroke();
+    ctx.fillStyle = highlight ? "#52c41a" : "rgba(150,200,255,0.7)";
+    ctx.font = "10px monospace";
+    const rad = (-90 + SECTOR_HALF) * Math.PI / 180;
+    ctx.fillText(d < 1000 ? "0.5m" : (d / 1000) + "m",
+                 cx + (r + 6) * Math.cos(rad) + 2,
+                 cy + (r + 6) * Math.sin(rad) - 2);
+  });
+
+  /* 视场边界 */
+  ctx.strokeStyle = "rgba(47,196,26,0.9)";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + R * Math.cos((-90 - SECTOR_HALF) * Math.PI / 180),
+             cy + R * Math.sin((-90 - SECTOR_HALF) * Math.PI / 180));
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + R * Math.cos((-90 + SECTOR_HALF) * Math.PI / 180),
+             cy + R * Math.sin((-90 + SECTOR_HALF) * Math.PI / 180));
+  ctx.stroke();
+
+  /* 角度刻度 */
+  [-60, -30, 0, 30, 60].forEach(function (deg) {
+    const rad = (deg - 90) * Math.PI / 180;
+    ctx.strokeStyle = deg === 0 ? "rgba(47,196,26,0.6)" : "rgba(46,140,255,0.25)";
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + R * Math.cos(rad), cy + R * Math.sin(rad));
+    ctx.stroke();
+    ctx.fillStyle = "rgba(150,200,255,0.6)";
+    ctx.fillText(String(deg), cx + (R + 12) * Math.cos(rad) - 4,
+                 cy + (R + 12) * Math.sin(rad) + 3);
+  });
+
+  /* 警戒区 */
+  const p1 = radarToPixel(-4000, 200);
+  const p2 = radarToPixel(4000, 4000);
+  const zx = Math.min(p1.x, p2.x), zy = Math.min(p1.y, p2.y);
+  const zw = Math.abs(p2.x - p1.x), zh = Math.abs(p2.y - p1.y);
+  ctx.lineWidth = 1.5;
+  if (STATE.alarm) {
+    ctx.strokeStyle = "#ff4d4f";
+    ctx.fillStyle = "rgba(255,77,79,0.25)";
+  } else {
+    ctx.strokeStyle = "rgba(250,173,20,0.9)";
+    ctx.fillStyle = "rgba(250,173,20,0.12)";
+  }
+  ctx.setLineDash([6, 4]);
+  ctx.strokeRect(zx, zy, zw, zh);
+  ctx.setLineDash([]);
+  ctx.fillRect(zx, zy, zw, zh);
+  ctx.fillStyle = STATE.alarm ? "#ff4d4f" : "#faad14";
+  ctx.font = "11px sans-serif";
+  ctx.fillText("警戒区 ZONE", zx + 4, zy + 14);
+
+  /* 原点 */
+  ctx.fillStyle = "#52c41a";
+  ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(47,196,26,0.6)";
+  ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.stroke();
+}
+
+function drawSweep() {
+  const cx = radarCx(), cy = radarCy(), R = radarR();
+  const t = performance.now() / 1000;
+  if (!STATE.paused) STATE.scanAngle = (t * 0.9) % 120 - 60;
+  const rad = (STATE.scanAngle - 90) * Math.PI / 180;
+
+  const grad = ctx.createLinearGradient(cx, cy, cx + R * Math.cos(rad), cy + R * Math.sin(rad));
+  grad.addColorStop(0, "rgba(22,119,255,0.30)");
+  grad.addColorStop(1, "rgba(22,119,255,0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, R,
+          (STATE.scanAngle - 4 - 90) * Math.PI / 180,
+          (STATE.scanAngle + 4 - 90) * Math.PI / 180);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(22,119,255,0.8)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + R * Math.cos(rad), cy + R * Math.sin(rad));
+  ctx.stroke();
+}
+
+function drawTrackLines(data) {
+  if (!data) return;
+  data.tracks.forEach(function (tr) {
+    if (tr.pts.length < 2) return;
+    ctx.strokeStyle = tr.color;
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    tr.pts.forEach(function (pt, i) {
+      const p = radarToPixel(pt[0], pt[1]);
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    });
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  });
+}
+
+function drawTargets(data) {
+  if (!data) return;
+  data.targets.forEach(function (t) {
+    const p = radarToPixel(t.x, t.y);
+    const col = t.in_zone
+      ? (Math.floor(performance.now() / 300) % 2 === 0 ? "#ff4d4f" : "#ffffff")
+      : t.color;
+
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = "#e6f4ff";
+    ctx.font = "12px Consolas, monospace";
+    ctx.fillText(t.dist.toFixed(2) + "m", p.x + 22, p.y - 8);
+    if (t.spd > 2) ctx.fillText(t.spd + "cm/s", p.x + 22, p.y + 6);
+    if (t.in_zone) {
+      ctx.fillStyle = "#ff4d4f";
+      ctx.fillText("ZONE!", p.x + 22, p.y + 20);
+    }
+  });
+}
+
+/* ============================ 界面更新 ============================ */
+
+function updateUI(data) {
+  if (!data) return;
+  STATE.alarm = data.alarm;
+  STATE.lastData = data;
+
+  const online = data.nodes.filter(function (n) { return n.online; }).length;
+  document.getElementById("stNodes").textContent = online;
+  document.getElementById("stTargets").textContent = data.targets.length;
+  const fps = data.nodes.reduce(function (s, n) { return s + n.fps; }, 0);
+  document.getElementById("stFps").textContent = fps.toFixed(1);
+  document.getElementById("stAlarm").textContent = data.alarm ? "告警" : "正常";
+  document.getElementById("stAlarm").style.color = data.alarm ? "#f5222d" : "#1677ff";
+
+  const banner = document.getElementById("alarmBanner");
+  banner.classList.toggle("show", data.alarm);
+  if (data.alarm) playAlarm();
+
+  /* 节点列表 */
+  const list = document.getElementById("nodeList");
+  list.innerHTML = "";
+  data.nodes.forEach(function (n) {
+    const li = document.createElement("li");
+    li.className = "node-item";
+    li.innerHTML =
+      '<span class="dotc" style="background:' + n.color + '"></span>' +
+      '<span class="name">节点 ' + n.id + '</span>' +
+      '<span class="fps">' + n.fps + ' fps</span>' +
+      '<span class="badge ' + (n.online ? "on" : "off") + '">' +
+      (n.online ? "在线" : "离线") + '</span>';
+    list.appendChild(li);
+  });
+  document.getElementById("nodeCount").textContent = "(" + data.nodes.length + " 个)";
+
+  /* 告警事件 */
+  const al = document.getElementById("alarmList");
+  al.innerHTML = "";
+  data.alarm_events.slice().reverse().forEach(function (ev) {
+    const li = document.createElement("li");
+    if (ev.type === "enter") li.className = "warn";
+    const time = new Date(ev.ts * 1000).toLocaleTimeString();
+    li.textContent = time + "  节点" + ev.node + "  " +
+      (ev.type === "enter" ? "进入警戒区" : "离开警戒区");
+    al.appendChild(li);
+  });
+  document.getElementById("alarmCount").textContent = "(" + data.alarm_events.length + " 条)";
+}
+
+/* ============================ 告警音 ============================ */
+
+let audioCtx = null;
+function playAlarm() {
+  const now = performance.now();
+  if (now - STATE.lastAlarmSound < 900) return;
+  STATE.lastAlarmSound = now;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "square";
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+  } catch (e) { /* 忽略音频错误 */ }
+}
+
+/* ============================ 按钮 ============================ */
+
+document.getElementById("btnPause").addEventListener("click", function () {
+  STATE.paused = !STATE.paused;
+  this.textContent = STATE.paused ? "继续" : "暂停";
+});
+document.getElementById("btnExport").addEventListener("click", function () {
+  window.location.href = "/api/export.csv";
+});
+
+/* ============================ 数据轮询 ============================ */
+
+setInterval(function () {
+  fetch("/api/status").then(function (r) { return r.json(); }).then(function (d) {
+    STATE.lastData = d;
+    updateUI(d);
+  }).catch(function () { /* 服务未就绪 */ });
+}, 200);
+
+/* ============================ 动画循环 ============================ */
+
+function loop() {
+  drawBackground();
+  drawTrackLines(STATE.lastData);
+  drawTargets(STATE.lastData);
+  drawSweep();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

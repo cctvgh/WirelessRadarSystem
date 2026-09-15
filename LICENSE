@@ -1,0 +1,32 @@
+MIT License
+
+Copyright (c) 2026 无线毫米波雷达智能感知系统 V1.0（二次开发作者：何汉锋）
+Copyright (c) 2026 Sudo_solder（原始项目 Arduino-ESP32-Radarproject 作者）
+
+本软件为 Arduino-ESP32-Radarproject（MIT License, Copyright (c) 2026 Sudo_solder）
+的二次开发作品，在保留原始版权声明的前提下，进行了如下深度重构与功能增强：
+
+  - 发射端固件：代码模块化重构、坐标解码修正、目标聚类增强、
+    节点心跳与多节点组网、WiFi 断线指数退避重连、雷达指令周期重发
+  - 接收端固件：多节点接收支持、警戒区域告警引擎、告警事件串口上报、
+    幽灵目标过滤增强、连接状态看门狗
+  - PC 服务端：新增 UDP 接收服务、Web 实时可视化界面、轨迹记录与
+    CSV 导出、警戒区告警引擎、无硬件模拟器
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
